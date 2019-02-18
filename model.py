@@ -137,7 +137,7 @@ class Decoder(nn.Module):
 
         vocab_outputs = nn.functional.log_softmax(self.output_to_vocab(padded_outputs.view(-1, padded_outputs.size(2))), dim=-1)
         vocab_outputs = vocab_outputs.view(b, s, self.embedding.num_embeddings)
-
+        vocab_outputs = vocab_outputs.permute(1, 0, 2)
         return vocab_outputs
 
     def inference(self):
@@ -145,8 +145,18 @@ class Decoder(nn.Module):
 
 
 class SentenceGenerator(nn.Module):
-    def __init__(self):
+    def __init__(self, encoder, decoder):
         super().__init__()
 
-    def forward(self):
-        pass
+        self.encoder = encoder
+        self.decoder = decoder
+
+    def forward(self, input, input_lengths):
+        mean, var = self.encoder(input, input_lengths)
+
+        std = torch.exp(var / 2)
+        eps = torch.randn_like(std)
+        x_sample = eps.mul(std).add_(mean)
+
+        outputs = self.decoder(input, input_lengths, x_sample)
+        return outputs, mean, var
